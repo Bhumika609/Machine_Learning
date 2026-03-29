@@ -1,0 +1,4 @@
+import pandas as pd
+
+df = pd.read_excel("mental_workload_detection/data/raw/Subject00_1.xlsx")
+print(df.shape)
