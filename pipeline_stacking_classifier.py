@@ -4,12 +4,13 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-import matplotlib
-matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from sklearn.model_selection import GroupShuffleSplit
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, StackingClassifier
 from sklearn.svm import SVC
 from sklearn.neural_network import MLPClassifier
@@ -79,7 +80,7 @@ base_models = [
 ]
 
 # =========================
-# 5. META MODELS (MULTIPLE)
+# 5. META MODELS
 # =========================
 
 meta_models = {
@@ -106,7 +107,7 @@ all_results = []
 
 for name, meta_model in meta_models.items():
 
-    print(f"\n===== Training Stacking with Meta Model: {name} =====")
+    print(f"\n===== Pipeline + Stacking with Meta Model: {name} =====")
 
     stacking_clf = StackingClassifier(
         estimators=base_models,
@@ -117,12 +118,19 @@ for name, meta_model in meta_models.items():
         passthrough=True, 
     )
 
-    stacking_clf.fit(X_train, y_train)
+    # 🔥 PIPELINE (Scaler + Stacking)
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('stacking', stacking_clf)
+    ])
 
-    # Predictions
-    y_train_pred = stacking_clf.predict(X_train)
-    y_test_pred = stacking_clf.predict(X_test)
-    y_test_proba = stacking_clf.predict_proba(X_test)[:, 1]
+    # Train
+    pipeline.fit(X_train, y_train)
+
+    # Predict
+    y_train_pred = pipeline.predict(X_train)
+    y_test_pred = pipeline.predict(X_test)
+    y_test_proba = pipeline.predict_proba(X_test)[:, 1]
 
     # Metrics
     train_acc = accuracy_score(y_train, y_train_pred)
@@ -150,11 +158,11 @@ for name, meta_model in meta_models.items():
 
     plt.figure(figsize=(6,5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    plt.title(f"Stacking ({name}) Confusion Matrix")
+    plt.title(f"Pipeline Stacking ({name}) Confusion Matrix")
     plt.xlabel("Predicted")
     plt.ylabel("True")
 
-    cm_path = os.path.join(output_dir, f"Stacking_{name}_confusion_matrix.png")
+    cm_path = os.path.join(output_dir, f"Pipeline_Stacking_{name}_cm.png")
     plt.savefig(cm_path, dpi=300)
     plt.close()
 
@@ -165,7 +173,7 @@ for name, meta_model in meta_models.items():
     # =========================
 
     all_results.append({
-        "Model": f"Stacking(No Pipeline) ({name})",
+        "Model": f"Pipeline Stacking ({name})",
         "Train Acc": round(train_acc, 4),
         "Test Acc": round(test_acc, 4),
         "Precision": round(precision, 4),
@@ -182,18 +190,13 @@ for name, meta_model in meta_models.items():
 
 new_results_df = pd.DataFrame(all_results)
 
-excel_path = os.path.join(output_dir, "model_comparision_results.xlsx")
-
 if os.path.exists(excel_path):
     existing_df = pd.read_excel(excel_path)
-    combined_df = pd.concat([existing_df, new_results_df], ignore_index=True)
-
-    # ✅ Remove duplicates
-    combined_df = combined_df.drop_duplicates(subset=["Model"], keep="last")
+    final_df = pd.concat([existing_df, new_results_df], ignore_index=True)
 else:
-    combined_df = new_results_df
+    final_df = new_results_df
 
-combined_df.to_excel(excel_path, index=False)
+final_df.to_excel(excel_path, index=False)
 
-print("\nAll stacking results saved to:")
+print("\nAll pipeline stacking results saved to:")
 print(excel_path)
